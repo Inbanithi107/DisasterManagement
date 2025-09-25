@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earthquake Stabilised Dialysis Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#94a3b8', 500: '#64748b', 600: '#475569', 700: '#334155', 800: '#1e293b', 900: '#0f172a' },
+                        accent: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' },
+                        success: { 50: '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0', 300: '#86efac', 400: '#4ade80', 500: '#22c55e', 600: '#16a34a', 700: '#15803d', 800: '#166534', 900: '#14532d' },
+                        warning: { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706', 700: '#b45309', 800: '#92400e', 900: '#78350f' },
+                        danger: { 50: '#fef2f2', 100: '#fee2e2', 200: '#fecaca', 300: '#fca5a5', 400: '#f87171', 500: '#ef4444', 600: '#dc2626', 700: '#b91c1c', 800: '#991b1b', 900: '#7f1d1d' }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * { font-family: 'Inter', sans-serif; }
+        body { background-color: #f8fafc; min-height: 100vh; }
+        .glass-card { background-color: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06); }
+        .card-hover { transition: all 0.2s ease; }
+        .card-hover:hover { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06); }
+        .metric-card { background-color: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
+        .chart-container { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1.25rem; }
+        body.login-bg {
+            background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1.25rem;
+        }
+        #loginSection {
+            background-color: rgba(30, 41, 59, 0.9);
+            color: white;
+            border-radius: 1.25rem;
+            padding: 2.5rem;
+            max-width: 500px;
+            margin: 0 auto;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        .logo i { font-size: 3rem; color: #3b82f6; margin-bottom: 1rem; }
+        .logo h1 { font-size: 1.75rem; font-weight: 700; color: white; }
+        .logo p { color: #94a3b8; margin-top: 0.5rem; }
+        .input-group { margin-bottom: 1.5rem; text-align: left; }
+        .input-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #e2e8f0; }
+        .input-group input { width: 100%; padding: 1rem; border: 2px solid #334155; background-color: #1e293b; border-radius: 0.5rem; color: white; font-size: 1rem; transition: all 0.3s; }
+        .input-group input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3); }
+        .btn { width: 100%; padding: 1rem; border: none; border-radius: 0.5rem; background-color: #3b82f6; color: white; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; margin-top: 0.5rem; }
+        .btn:hover { background-color: #2563eb; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(37, 99, 235, 0.4); }
+        #detectionSection { display: none; }
+        .detection-container h2 { 
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 1rem;
+        }
+        .video-container { 
+            position: relative; 
+            width: 100%; 
+            padding-top: 75%;
+            margin-bottom: 1rem; 
+            background-color: black;
+            border-radius: 0.75rem;
+        }
+        .video-container video, .video-container canvas { 
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%; 
+            height: 100%;
+            border-radius: 0.75rem;
+        }
+        .detection-info { margin-top: 1rem; }
+        .info-item { 
+            background-color: #ffffff;
+            padding: 1rem; 
+            border-radius: 0.75rem;
+            text-align: center; 
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .info-item-title { color: #4b5563; font-weight: 500; }
+        .info-item span { 
+            font-weight: 700;
+            font-size: 1.125rem;
+            display: block; 
+            margin-top: 0.25rem;
+            color: #1d4ed8;
+        }
+    </style>
+</head>
+<body class="min-h-screen login-bg">
+    <div class="container mx-auto">
+        <section id="loginSection">
+            <div class="logo">
+                <i class="fas fa-lock"></i>
+                <h1>Secure Access</h1>
+                <p>Login to access the monitoring system</p>
+            </div>
+            <form id="loginForm">
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Enter your username" value="admin" required>
+                </div>
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter your password" value="password" required>
+                </div>
+                <button type="submit" class="btn">Login</button>
+            </form>
+        </section>
+
+        <section id="detectionSection">
+            <header class="glass-card border-b border-gray-200 sticky top-0 z-40">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex items-center justify-between h-16">
+                        <div class="flex items-center gap-4">
+                            <div class="p-3 bg-accent-500 rounded-lg"><i data-lucide="shield" class="w-8 h-8 text-white"></i></div>
+                            <div>
+                                <h1 class="text-2xl font-bold text-gray-900">Earthquake Stabilised Dialysis Dashboard</h1>
+                                <p class="text-sm text-gray-600">Real-time monitoring for patient safety</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="flex items-center gap-2 px-4 py-2 bg-success-500 text-white rounded-lg text-sm font-medium"><div class="w-2 h-2 bg-white rounded-full"></div>System Online</div>
+                            <div class="text-sm text-gray-600 font-medium" id="current-time">Loading...</div>
+                            <button id="logoutButton" class="px-4 py-2 bg-danger-500 text-white rounded-lg text-sm font-medium hover:bg-danger-600">Logout</button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div class="glass-card rounded-lg p-6 card-hover"><div class="flex items-center gap-4"><div class="p-3 bg-success-500 rounded-lg"><i data-lucide="activity" class="w-6 h-6 text-white"></i></div><div><p class="text-sm text-gray-600 font-medium">Seismic Status</p><p class="text-xl font-bold text-gray-900">Normal</p></div></div></div>
+                    <div class="glass-card rounded-lg p-6 card-hover"><div class="flex items-center gap-4"><div class="p-3 bg-danger-500 rounded-lg"><i data-lucide="heart" class="w-6 h-6 text-white"></i></div><div><p class="text-sm text-gray-600 font-medium">Patient Status</p><p class="text-xl font-bold text-gray-900">Stable</p></div></div></div>
+                    <div class="glass-card rounded-lg p-6 card-hover"><div class="flex items-center gap-4"><div class="p-3 bg-accent-500 rounded-lg"><i data-lucide="cpu" class="w-6 h-6 text-white"></i></div><div><p class="text-sm text-gray-600 font-medium">Equipment</p><p class="text-xl font-bold text-gray-900">Operational</p></div></div></div>
+                    <div class="glass-card rounded-lg p-6 card-hover"><div class="flex items-center gap-4"><div class="p-3 bg-warning-500 rounded-lg"><i data-lucide="shield" class="w-6 h-6 text-white"></i></div><div><p class="text-sm text-gray-600 font-medium">Alert Level</p><p class="text-xl font-bold text-gray-900">Safe</p></div></div></div>
+                </div>
+            
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2 space-y-8">
+                        <div class="glass-card rounded-lg p-6 card-hover">
+                            <div class="flex items-center justify-between mb-6"><div class="flex items-center gap-4"><div class="p-3 bg-accent-500 rounded-lg"><i data-lucide="zap" class="w-6 h-6 text-white"></i></div><div><h3 class="text-xl font-bold text-gray-900">Seismic Wave Activity</h3><p class="text-sm text-gray-600">Real-time P-wave and S-wave monitoring</p></div></div></div>
+                            <div class="chart-container h-80"><canvas id="seismicChart"></canvas></div>
+                            <div class="mt-6 grid grid-cols-2 gap-4"><div class="metric-card rounded-lg p-4 card-hover"><div class="flex items-center justify-between"><div><p class="text-sm text-gray-600 font-medium">P-Wave Intensity</p><p class="text-2xl font-bold text-accent-600" id="pwave-value">0.00</p></div><div class="p-3 bg-accent-500 rounded-lg"><i data-lucide="activity" class="w-5 h-5 text-white"></i></div></div></div>
+                            <div class="metric-card rounded-lg p-4 card-hover"><div class="flex items-center justify-between"><div><p class="text-sm text-gray-600 font-medium">S-Wave Intensity</p><p class="text-2xl font-bold text-danger-600" id="swave-value">0.00</p></div><div class="p-3 bg-danger-500 rounded-lg"><i data-lucide="zap" class="w-5 h-5 text-white"></i></div></div></div></div>
+                        </div>
+            
+                        <div class="glass-card rounded-lg p-6 card-hover">
+                            <div class="flex items-center justify-between mb-6"><div class="flex items-center gap-4"><div class="p-3 bg-danger-500 rounded-lg"><i data-lucide="heart" class="w-6 h-6 text-white"></i></div><div><h3 class="text-xl font-bold text-gray-900">Patient Vitals 1 </h3><p class="text-sm text-gray-600">Simulated real-time monitoring</p></div></div></div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div class="metric-card rounded-lg p-4"><div class="space-y-1"><p class="text-sm text-gray-600 font-medium">Heart Rate</p><p class="text-2xl font-bold text-danger-600" id="heart-rate">-- BPM</p></div></div>
+                                <div class="metric-card rounded-lg p-4"><div class="space-y-1"><p class="text-sm text-gray-600 font-medium">Blood Pressure</p><p class="text-2xl font-bold text-accent-600" id="blood-pressure">--/--</p></div></div>
+                                <div class="metric-card rounded-lg p-4"><div class="space-y-1"><p class="text-sm text-gray-600 font-medium">SPO₂</p><p class="text-2xl font-bold text-success-600" id="spo2">-- %</p></div></div>
+                            </div>
+                        </div>
+
+                        <div class="glass-card rounded-lg p-6 card-hover">
+                            <div class="flex items-center justify-between mb-6"><div class="flex items-center gap-4"><div class="p-3 bg-danger-500 rounded-lg"><i data-lucide="heart" class="w-6 h-6 text-white"></i></div><div><h3 class="text-xl font-bold text-gray-900">Patient Vitals 2</h3><p class="text-sm text-gray-600">Simulated real-time monitoring</p></div></div></div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div class="metric-card rounded-lg p-4"><div class="space-y-1"><p class="text-sm text-gray-600 font-medium">Heart Rate</p><p class="text-2xl font-bold text-danger-600" id="heart-rate">-- BPM</p></div></div>
+                                <div class="metric-card rounded-lg p-4"><div class="space-y-1"><p class="text-sm text-gray-600 font-medium">Blood Pressure</p><p class="text-2xl font-bold text-accent-600" id="blood-pressure">--/--</p></div></div>
+                                <div class="metric-card rounded-lg p-4"><div class="space-y-1"><p class="text-sm text-gray-600 font-medium">SPO₂</p><p class="text-2xl font-bold text-success-600" id="spo2">-- %</p></div></div>
+                            </div>
+                        </div>
+
+                        <div class="glass-card rounded-lg p-6 card-hover">
+                            <div class="flex items-center justify-between mb-6"><div class="flex items-center gap-4"><div class="p-3 bg-danger-500 rounded-lg"><i data-lucide="heart" class="w-6 h-6 text-white"></i></div><div><h3 class="text-xl font-bold text-gray-900">Patient Vitals 3</h3><p class="text-sm text-gray-600">Simulated real-time monitoring</p></div></div></div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div class="metric-card rounded-lg p-4"><div class="space-y-1"><p class="text-sm text-gray-600 font-medium">Heart Rate</p><p class="text-2xl font-bold text-danger-600" id="heart-rate">-- BPM</p></div></div>
+                                <div class="metric-card rounded-lg p-4"><div class="space-y-1"><p class="text-sm text-gray-600 font-medium">Blood Pressure</p><p class="text-2xl font-bold text-accent-600" id="blood-pressure">--/--</p></div></div>
+                                <div class="metric-card rounded-lg p-4"><div class="space-y-1"><p class="text-sm text-gray-600 font-medium">SPO₂</p><p class="text-2xl font-bold text-success-600" id="spo2">-- %</p></div></div>
+                            </div>
+                        </div>
+            
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div class="detection-container glass-card rounded-lg card-hover">
+                                <h2>Live Camera Feed 1</h2>
+                                <div class="video-container">
+                                    <video id="camera1" autoplay playsinline muted></video>
+                                    <canvas id="canvas1"></canvas>
+                                </div>
+
+                                <div class="detection-info">
+                                    <div class="info-item">
+                                        <div class="info-item-title">👤 Person Detected</div>
+                                        <span id="person1">No</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="detection-container glass-card rounded-lg card-hover">
+                                <h2>Live Camera Feed 2</h2>
+                                <div class="video-container">
+                                    <video id="camera2" autoplay playsinline muted></video>
+                                    <canvas id="canvas2"></canvas>
+                                </div>
+                                <div class="detection-info">
+                                    <div class="info-item">
+                                        <div class="info-item-title">👤 Person Detected</div>
+                                        <span id="person2">No</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-8">
+                        <div class="glass-card rounded-lg p-6 card-hover">
+                            <div class="flex items-center justify-between mb-6"><div class="flex items-center gap-4"><div class="p-3 bg-danger-500 rounded-lg"><i data-lucide="bell" class="w-6 h-6 text-white"></i></div><div><h3 class="text-xl font-bold text-gray-900">Alert System</h3><p class="text-sm text-gray-600">Seismic alerts and actions</p></div></div><button class="px-4 py-2 bg-accent-500 text-white rounded-lg text-sm font-medium hover:bg-accent-600" onclick="toggleEvacuationMode()">Evacuation Mode</button></div>
+                            <div class="mt-6"><h4 class="font-semibold text-gray-900 mb-4">Recent Alerts</h4><div class="space-y-3"><div class="flex items-center justify-between p-3 metric-card rounded-lg text-sm"><span class="text-gray-600 font-medium">System startup</span><span class="text-gray-500">2 min ago</span></div><div class="flex items-center justify-between p-3 metric-card rounded-lg text-sm"><span class="text-gray-600 font-medium">All systems operational</span><span class="text-gray-500">5 min ago</span></div></div></div>
+                        </div>
+                        <div class="glass-card rounded-lg p-6 card-hover">
+                            <div class="flex items-center justify-between mb-6"><div class="flex items-center gap-4"><div class="p-3 bg-accent-500 rounded-lg"><i data-lucide="cpu" class="w-6 h-6 text-white"></i></div><div><h3 class="text-xl font-bold text-gray-900">Device Status</h3><p class="text-sm text-gray-600">Equipment diagnostics</p></div></div></div>
+                            <div class="space-y-4"><div class="flex items-center justify-between p-4 metric-card rounded-lg"><div class="flex items-center gap-4"><i data-lucide="cpu" class="w-5 h-5 text-success-500"></i><div><h4 class="font-semibold text-gray-900">Dialysis Machine</h4></div></div><span class="text-sm font-semibold text-success-600">Connected</span></div>
+                            <div class="flex items-center justify-between p-4 metric-card rounded-lg"><div class="flex items-center gap-4"><i data-lucide="battery" class="w-5 h-5 text-success-500"></i><div><h4 class="font-semibold text-gray-900">Backup Battery</h4><p class="text-sm text-gray-600" id="battery-level">-- %</p></div></div><span class="text-sm font-semibold text-success-600">Connected</span></div>
+                            <div class="flex items-center justify-between p-4 metric-card rounded-lg"><div class="flex items-center gap-4"><i data-lucide="wifi" class="w-5 h-5 text-success-500"></i><div><h4 class="font-semibold text-gray-900">Network</h4></div></div><span class="text-sm font-semibold text-success-600">Connected</span></div></div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+            
+            <footer class="glass-card border-t border-gray-200 mt-12">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6"><div class="flex items-center justify-between"><div class="flex items-center gap-3 text-sm text-gray-600"><i data-lucide="shield" class="w-5 h-5 text-gray-600"></i><span class="font-medium">Earthquake Stabilised Dialysis System v1.0</span></div><div class="text-sm text-gray-500 font-medium" id="footer-time">Loading...</div></div></div>
+            </footer>
+        </section>
+    </div>
+
+    <script>
+        let model = null;
+        let streams = { camera1: null, camera2: null };
+        const loginSection = document.getElementById('loginSection');
+        const detectionSection = document.getElementById('detectionSection');
+        const loginForm = document.getElementById('loginForm');
+        const logoutButton = document.getElementById('logoutButton');
+        loginForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (username === 'admin' && password === 'password') {
+                loginSection.style.display = 'none';
+                detectionSection.style.display = 'block';
+                document.body.classList.remove('login-bg');
+                document.body.style.background = '#f8fafc';
+                initializeDashboard();
+            } else {
+                alert('Invalid credentials. Use admin/password');
+            }
+        });
+        logoutButton.addEventListener('click', function() {
+            stopAllCameras();
+            detectionSection.style.display = 'none';
+            loginSection.style.display = 'block';
+            document.body.classList.add('login-bg');
+        });
+        function initializeDashboard() {
+            lucide.createIcons();
+            startAllCameras();
+            runDetection();
+            setInterval(updateTime, 1000);
+            setInterval(fetchSensorData, 2000);
+            setInterval(updateSimulatedVitals, 2000);
+        }
+        async function startCamera(videoId) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                document.getElementById(videoId).srcObject = stream;
+                streams[videoId] = stream;
+            } catch (err) {
+                console.error(`Camera error for ${videoId}:`, err);
+            }
+        }
+        function startAllCameras() {
+            startCamera('camera1');
+            startCamera('camera2');
+        }
+        function stopAllCameras() {
+            Object.values(streams).forEach(stream => {
+                if (stream) stream.getTracks().forEach(track => track.stop());
+            });
+        }
+        async function runDetection() {
+            try {
+                model = await cocoSsd.load();
+                console.log("✅ AI Model loaded!");
+                detectFrame('camera1', 'canvas1', 'person1');
+                detectFrame('camera2', 'canvas2', 'person2');
+            } catch (error) {
+                console.error("Error loading AI model:", error);
+            }
+        }
+        async function detectFrame(videoId, canvasId, personId) {
+            const video = document.getElementById(videoId);
+            const canvas = document.getElementById(canvasId);
+            const personSpan = document.getElementById(personId);
+            if (!model || !video.srcObject || video.readyState < 3) {
+                requestAnimationFrame(() => detectFrame(videoId, canvasId, personId));
+                return;
+            }
+            const ctx = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const predictions = await model.detect(video);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const personPrediction = predictions.find(p => p.class === 'person');
+            if (personPrediction) {
+                personSpan.textContent = "Yes";
+                ctx.strokeStyle = "#22c55e";
+                ctx.lineWidth = 4;
+                ctx.strokeRect(...personPrediction.bbox);
+                ctx.fillStyle = "#22c55e";
+                ctx.font = "18px Inter";
+                ctx.fillText('Person', personPrediction.bbox[0], personPrediction.bbox[1] > 10 ? personPrediction.bbox[1] - 5 : 20);
+            } else {
+                personSpan.textContent = "No";
+            }
+            requestAnimationFrame(() => detectFrame(videoId, canvasId, personId));
+        }
+        function updateTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            const timeEl = document.getElementById('current-time');
+            const footerTimeEl = document.getElementById('footer-time');
+            if (timeEl) timeEl.textContent = timeStr;
+            if (footerTimeEl) footerTimeEl.textContent = `Last updated: ${timeStr}`;
+        }
+        async function fetchSensorData() {
+            try {
+                const response = await fetch('http://YOUR_COMPUTER_IP:3000/data');
+                if (!response.ok) {
+                    console.error("Server connection failed. Status:", response.status);
+                    return;
+                }
+                const data = await response.json();
+                updateSeismicUI(data); 
+            } catch (error) {
+                console.error("Error fetching sensor data:", error);
+            }
+        }
+        function updateSimulatedVitals() {
+            document.getElementById('heart-rate').textContent = `${Math.floor(Math.random() * 10 + 75)} BPM`;
+            document.getElementById('blood-pressure').textContent = `${Math.floor(Math.random() * 10 + 115)}/${Math.floor(Math.random() * 10 + 75)}`;
+            document.getElementById('spo2').textContent = `${Math.floor(Math.random() * 4 + 96)} %`;
+            document.getElementById('potassium').textContent = (Math.random() * 1.5 + 3.5).toFixed(1);
+            document.getElementById('battery-level').textContent = `${Math.floor(Math.random() * 10 + 90)} %`;
+        }
+        const ctxChart = document.getElementById('seismicChart').getContext('2d');
+        const seismicChart = new Chart(ctxChart, {
+            type: 'line',
+            data: {
+                labels: Array(30).fill(''),
+                datasets: [{
+                    label: 'P-Wave (ESP32-1)', data: Array(30).fill(0), borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderWidth: 2, fill: true, tension: 0.4, pointRadius: 0
+                }, {
+                    label: 'S-Wave (ESP32-2)', data: Array(30).fill(0), borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 2, fill: true, tension: 0.4, pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'top' } },
+                scales: { x: { ticks: { display: false } }, y: { min: 0, max: 1 } },
+            },
+        });
+        function updateSeismicUI(data) {
+            if (!data || !data.esp32_1 || !data.esp32_2) return;
+            seismicChart.data.labels.shift(); 
+            seismicChart.data.labels.push(new Date().toLocaleTimeString());
+            seismicChart.data.datasets[0].data.shift(); 
+            seismicChart.data.datasets[0].data.push(data.esp32_1.p_wave); 
+            seismicChart.data.datasets[1].data.shift();
+            seismicChart.data.datasets[1].data.push(data.esp32_2.s_wave);
+            seismicChart.update('none');
+            document.getElementById('pwave-value').textContent = data.esp32_1.p_wave.toFixed(2);
+            document.getElementById('swave-value').textContent = data.esp32_2.s_wave.toFixed(2);
+        }
+        function toggleEvacuationMode() {
+            alert('Evacuation Mode action would be triggered here.');
+        }
+    </script>
+</body>
+</html>
